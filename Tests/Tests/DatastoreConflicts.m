@@ -628,49 +628,6 @@
     
 }
 
-//
-//commented out until it's possible to delete documents within conflict resolution framework
-//
-//- (void) testResolveByAnnihilation
-//{
-//    //add a non-conflicting document
-//    [self addNonConflictingDocumentWithBody:@{@"conflict":@"no"} toDatastore:self.datastore];
-//
-//    NSSet *setOfConflictedDocIds = [NSSet setWithArray:@[@"doc0", @"doc1", @"doc2", @"doc3"]];
-//    for (NSString *docId in setOfConflictedDocIds) {
-//        [self addConflictingDocumentWithId:docId toDatastore:self.datastore];
-//    }
-//
-//    //add another non-conflicting document
-//    [self addNonConflictingDocumentWithBody:@{@"conflict":@"no"} toDatastore:self.datastore];
-//
-//    CDTTestDeleteConflictedDocResolver *myResolver = [[CDTTestDeleteConflictedDocResolver alloc] init];
-//
-//    for (NSString *docId in [self.datastore getConflictedDocumentIds]) {
-//        NSError *error;
-//        STAssertTrue([self.datastore resolveConflictsForDocument:docId
-//                                                        resolver:myResolver
-//                                                           error:&error],
-//                     @"resolve failure: %@", docId);
-//        STAssertNil(error, @"Error resolving document. %@", error);
-//    }
-//
-//    //make sure there are no more conflicting documents
-//    NSArray *conflictedDocs = [self.datastore getConflictedDocumentIds];
-//    STAssertEquals(conflictedDocs.count, (NSUInteger)0, @"");
-//
-//    //make sure that doc0, doc1, doc2 and doc3 cannot be retrieved
-//    for (NSString *docId in setOfConflictedDocIds) {
-//
-//        NSError *error = nil;
-//        CDTDocumentRevision *rev = [self.datastore getDocumentWithId:docId error:&error];
-//        STAssertNotNil(error, @"No Error getting document");
-//        STAssertEquals(error.code, (NSInteger)404, @"Error %@", error);
-//        STAssertNil(rev, @"CDTDocumentRevision object was not nil even though it was deleted.");
-//
-//    }
-//}
-
 - (void) testNoResolution
 {
     //add a non-conflicting document
