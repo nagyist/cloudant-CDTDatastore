@@ -295,5 +295,74 @@
     
 }
 
+-(CDTPullReplication*)createPullReplicationWithHeaders:(NSDictionary *)optionalHeaders
+{
+    NSString *remoteUrl = @"https://adam:cox@myaccount.cloudant.com/mydb";
+    
+    CDTDatastore *tmp = [self.factory datastoreNamed:@"test_database" error:nil];
+    CDTPullReplication *pull = [CDTPullReplication replicationWithSource:[NSURL URLWithString:remoteUrl]
+                                                                  target:tmp];
+    
+    pull.optionalHeaders = optionalHeaders;
+
+    return pull;
+}
+
+-(void)testForBannedOptionalReplicationHeaders
+{
+    
+    CDTPullReplication *pull;
+    NSError *error;
+    NSDictionary *pullDoc;
+    NSDictionary *optionalHeaders;
+    
+    
+    optionalHeaders = @{@"User-Agent": @"My Agent"};
+    pull = [self createPullReplicationWithHeaders:optionalHeaders];
+    error = nil;
+    pullDoc = [pull dictionaryForReplicatorDocument:&error];
+    STAssertNotNil(pullDoc, @"CDTPullReplication -dictionaryForReplicatorDocument failed with "
+                   @"header: %@", optionalHeaders);
+    
+    STAssertTrue([[pullDoc[@"headers"] objectForKey:@"User-Agent"] isEqualToString:@"My Agent"],
+                 @"Bad headers: %@", pullDoc[@"headers"]);
+    
+    
+    NSArray *bannedUpperArray = @[@"Authorization", @"WWW-Authenticate", @"Host",
+                                  @"Connection", @"Content-Type", @"Accept",
+                                  @"Content-Length"];
+    
+    NSMutableArray *bannedLowerArray = [NSMutableArray arrayWithCapacity:bannedUpperArray.count];
+    
+    for (NSString *header in bannedUpperArray) {
+        [bannedLowerArray addObject:[header lowercaseString]];
+    }
+    
+    for (NSString* bannedHeader in bannedUpperArray) {
+        optionalHeaders = @{bannedHeader: @"some value"};
+        pull = [self createPullReplicationWithHeaders:optionalHeaders];
+        error = nil;
+        pullDoc = [pull dictionaryForReplicatorDocument:&error];
+        STAssertNil(pullDoc, @"CDTPullReplication -dictionaryForReplicatorDocument passed with "
+                       @"header: %@, pullDoc: %@", optionalHeaders, pullDoc);
+        STAssertNotNil(error, @"Error was not set");
+        STAssertEquals(error.code, CDTReplicationErrorBannedOptionalHttpHeader,
+                       @"Wrote error code: %@", error.code);
+    }
+    //make sure the lower case versions fail too
+    for (NSString* bannedHeader in bannedLowerArray) {
+        optionalHeaders = @{bannedHeader: @"some value"};
+        pull = [self createPullReplicationWithHeaders:optionalHeaders];
+        error = nil;
+        pullDoc = [pull dictionaryForReplicatorDocument:&error];
+        STAssertNil(pullDoc, @"CDTPullReplication -dictionaryForReplicatorDocument passed with "
+                    @"header: %@, pullDoc: %@", optionalHeaders, pullDoc);
+        STAssertNotNil(error, @"Error was not set");
+        STAssertEquals(error.code, CDTReplicationErrorBannedOptionalHttpHeader,
+                       @"Wrote error code: %@", error.code);
+    }
+
+}
+
 
 @end

@@ -15,18 +15,113 @@
 #import "CDTAbstractReplication.h"
 #import "TD_DatabaseManager.h"
 #import "CDTLogging.h"
+#import "TDRemoteRequest.h"
 
 NSString* const CDTReplicationErrorDomain = @"CDTReplicationErrorDomain";
 
 @implementation CDTAbstractReplication
 
+-(NSString*) userAgentHeader
+{
+    return [TDRemoteRequest userAgentHeader];
+}
+
+-(instancetype) copyWithZone:(NSZone *)zone
+{
+    CDTAbstractReplication *copy = [[[self class] allocWithZone:zone] init];
+    if (copy) {
+        copy.optionalHeaders = self.optionalHeaders;
+    }
+    
+    return copy;
+}
+
 /**
  This method sets all of the common replication parameters. The subclasses,
  CDTPushReplication and CDTPullReplication add source, target and filter. 
+ 
  */
 -(NSDictionary*) dictionaryForReplicatorDocument:(NSError * __autoreleasing*)error
 {
-    return nil;
+    NSMutableDictionary *doc = [[NSMutableDictionary alloc] init];
+    
+    if (self.optionalHeaders) {
+        
+        NSMutableArray *lowerHeaders = [NSMutableArray arrayWithCapacity:self.optionalHeaders.count];
+        
+        //check for strings
+        for (id key in self.optionalHeaders) {
+            
+            if (![key isKindOfClass:[NSString class]]) {
+                if (error) {
+                    LogWarn(REPLICATION_LOG_CONTEXT, @"CDTAbstractReplication "
+                            @"-dictionaryForReplicatorDocument Error: "
+                            @"header key is not NSString. Found type %@", [key class]);
+                    
+                    NSString *msg = @"Cannot sync data. Bad optional HTTP header.";
+                    NSDictionary *userInfo = @{NSLocalizedDescriptionKey: NSLocalizedString(msg, nil)};
+                    *error = [NSError errorWithDomain:CDTReplicationErrorDomain
+                                                 code:CDTReplicationErrorBadOptionalHttpHeaderType
+                                             userInfo:userInfo];
+
+                }
+                return nil;
+            }
+            
+            if (![self.optionalHeaders[key] isKindOfClass:[NSString class]]) {
+                if (error) {
+                    LogWarn(REPLICATION_LOG_CONTEXT, @"CDTAbstractReplication "
+                            @"-dictionaryForReplicatorDocument Error: "
+                            @"value for header key: %@ is not NSString. "
+                            @"Found type %@.", key, [self.optionalHeaders[key] class]);
+                    
+                    NSString *msg = @"Cannot sync data. Bad optional HTTP header.";
+                    NSDictionary *userInfo = @{NSLocalizedDescriptionKey: NSLocalizedString(msg, nil)};
+                    *error = [NSError errorWithDomain:CDTReplicationErrorDomain
+                                                 code:CDTReplicationErrorBadOptionalHttpHeaderType
+                                             userInfo:userInfo];
+                    
+                }
+                return nil;
+            }
+            
+            [lowerHeaders addObject:[(NSString *)key lowercaseString]];
+        }
+        
+        NSArray *bannedUpperArray = @[@"Authorization", @"WWW-Authenticate", @"Host",
+                                      @"Connection", @"Content-Type", @"Accept",
+                                      @"Content-Length"];
+        
+        NSMutableArray *bannedLowerArray = [NSMutableArray arrayWithCapacity:bannedUpperArray.count];
+        
+        for (NSString *header in bannedUpperArray) {
+            [bannedLowerArray addObject:[header lowercaseString]];
+        }
+        
+        NSSet *optionalHeaderKeySet = [NSSet setWithArray:lowerHeaders];
+        NSSet *banned = [NSSet setWithArray:bannedLowerArray];
+        
+        if ([optionalHeaderKeySet intersectsSet:banned]){
+            if (error) {
+                LogWarn(REPLICATION_LOG_CONTEXT, @"CDTAbstractionReplication "
+                        @"-dictionaryForReplicatorDocument Error: "
+                        @"One of the optional headers is banned. \noptional headers: %@\n"
+                        @"banned headers: %@", self.optionalHeaders.allKeys, bannedUpperArray);
+                
+                NSString *msg = @"Cannot sync data. Bad optional HTTP header.";
+                NSDictionary *userInfo = @{NSLocalizedDescriptionKey: NSLocalizedString(msg, nil)};
+                *error = [NSError errorWithDomain:CDTReplicationErrorDomain
+                                             code:CDTReplicationErrorBannedOptionalHttpHeader
+                                         userInfo:userInfo];
+            }
+            return nil;
+        }
+        
+        doc[@"headers"]= self.optionalHeaders;
+        
+    }
+    
+    return [NSDictionary dictionaryWithDictionary:doc];
 }
 
 - (NSString *)description

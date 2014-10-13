@@ -19,6 +19,8 @@
 #import "CDTLogging.h"
 
 @interface CDTPushReplication()
+@property (nonatomic, strong, readwrite) NSURL* target;
+@property (nonatomic, strong, readwrite) CDTDatastore *source;
 @end
 
 @implementation CDTPushReplication
@@ -41,9 +43,11 @@
 
 -(instancetype) copyWithZone:(NSZone *)zone
 {
-    CDTPushReplication *copy = [[CDTPushReplication allocWithZone:zone] initWithSource:self.source
-                                                                                target:self.target];
+   CDTPushReplication *copy = [super copyWithZone:zone];
+    
     if (copy) {
+        copy.source = self.source;
+        copy.target = self.target;
         copy.filter = self.filter;
         copy.filterParams = self.filterParams;
     }
@@ -58,11 +62,19 @@
     if (![self validateRemoteDatastoreURL:self.target error:&localError]) {
         if (error) {
             *error = localError;
-            return nil;
         }
+        return nil;
     }
     
-    NSMutableDictionary *doc = [[NSMutableDictionary alloc] init];
+    NSDictionary *superdoc = [super dictionaryForReplicatorDocument:&localError];
+    if (superdoc == nil) {
+        if (error) {
+            *error = localError;
+        }
+        return nil;
+    }
+    
+    NSMutableDictionary *doc = [NSMutableDictionary dictionaryWithDictionary:superdoc];
     
     [doc setObject:self.target.absoluteString forKey:@"target"];
     

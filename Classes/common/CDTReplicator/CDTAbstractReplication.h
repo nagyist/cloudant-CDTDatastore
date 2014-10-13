@@ -38,7 +38,15 @@ typedef NS_ENUM(NSInteger, CDTReplicationErrors) {
     /**
      Missing either a username or password.
      */
-    CDTReplicationErrorIncompleteCredentials
+    CDTReplicationErrorIncompleteCredentials,
+    /**
+     An optional HTTP Header key or value is not of type NSString.
+     */
+    CDTReplicationErrorBadOptionalHttpHeaderType,
+    /**
+     See below for a list of HTTP keys that are banned.
+     */
+    CDTReplicationErrorBannedOptionalHttpHeader
 };
 
 
@@ -54,7 +62,7 @@ typedef NS_ENUM(NSInteger, CDTReplicationErrors) {
  These are specified with the -target and -source properties found in the subclasses.
  
  */
-@interface CDTAbstractReplication : NSObject
+@interface CDTAbstractReplication : NSObject <NSCopying>
 
 
 /*
@@ -68,8 +76,54 @@ typedef NS_ENUM(NSInteger, CDTReplicationErrors) {
  http://docs.couchdb.org/en/latest/json-structure.html#replication-settings
  
  ---------------------------------------------------------------------------------------
- */
+*/
 
+/**
+ One can set additional HTTP headers by providing an NSDictionary with the header
+ name-value string pairs. The headers will be added to all HTTP requests made on behalf
+ of the push or pull replication.
+ 
+ All keys and values are required to be NSString (or subclass) objects. If they are not NSString
+ or subclasses, then -dictionaryForReplicatorDocument will return an error and the CDTReplicator 
+ object will not be instantiated successfully.
+ 
+ Internally we use NSMutableURLRequest, which automatically sets some headers that should
+ not be modified. 
+ 
+ @see NSMutableURLRequest
+ 
+ According to NSURLConnection, one should not modify the headers
+ 
+ * Authorization
+ * Connection
+ * Host
+ * WWW-Authenticate
+ 
+ since they are managed automatically.
+ 
+ Additionaly, one should not set the headers
+
+ * Content-Type
+ * Accept
+ * Content-Length
+
+ as they will be overwritten by the CloudantSync framework.
+ 
+ As such, these headers are effecitvely banned. If one of these headers are set here, instantiation
+ of the CDTReplicator object will fail.
+ 
+ The default value for the header "User-Agent" is "CloudantSync/<version/build/platform info>".
+ This header may be modified if desired. One may obtain the current default value of "User-Agent" 
+ with the method (NSString*) -userAgentHeader, should one wish to append the header
+ with further information (such as "CloudantSync/<version/build/platform info>/YourApplicationName").
+ 
+*/
+@property (nonatomic, copy) NSDictionary* optionalHeaders;
+
+/**
+ Returns the default "User-Agent" header value used in HTTP requests made during replication. 
+*/
+-(NSString*) userAgentHeader;
 
 /*
  ---------------------------------------------------------------------------------------
@@ -82,15 +136,13 @@ typedef NS_ENUM(NSInteger, CDTReplicationErrors) {
  ---------------------------------------------------------------------------------------
  */
 
-/** The NSDictionary is used by CDTReplicatorFactory to generate the proper document for the 
- _replicator database.
- 
- @param error reports error information
- @return The NSDictionary that represents the JSON document to be written to the _replicator
- database.
- @warning This method is for internal use only. The CDTPushReplication and CDTPullReplication
-     classes implement this method.
+/** The NSDictionary is used by CDTReplicatorFactory to properly configure CDTReplicator objects.
 
+ @param error reports error information
+ @return The NSDictionary that configures a CDTReplicator instance.
+ @warning This method is for internal use only. The CDTPushReplication and CDTPullReplication
+     classes override this method.
+ 
  */
 -(NSDictionary*) dictionaryForReplicatorDocument:(NSError * __autoreleasing*)error;
 
